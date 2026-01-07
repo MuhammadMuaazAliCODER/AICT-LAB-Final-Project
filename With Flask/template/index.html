@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Personal Expense Tracker</title>
+    <link rel="stylesheet" href="../static/style.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <h1>
+                    <span class="header-icon">💰</span>
+                    Personal Expense Tracker
+                </h1>
+                <p class="header-subtitle">Track, manage, and analyze your daily expenses</p>
+            </div>
+            <div class="header-brand">
+                <span class="brand-text">by</span>
+                <span class="brand-name">Code Dominators</span>
+            </div>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }}">
+                        <span class="alert-icon">{% if category == 'success' %}✓{% else %}⚠{% endif %}</span>
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Summary Cards -->
+        <div class="summary-cards">
+            <div class="card card-blue">
+                <div class="card-content">
+                    <div class="card-label">Total Expenses</div>
+                    <div class="card-value">${{ "%.2f"|format(summary.total) }}</div>
+                    <div class="card-trend">
+                        <span class="trend-icon">📈</span>
+                        <span class="trend-text">
+                            {% if current_filter == 'custom' %}Custom Range{% else %}All time{% endif %}
+                        </span>
+                    </div>
+                </div>
+                <div class="card-icon-wrapper">
+                    <span class="card-icon">💵</span>
+                </div>
+            </div>
+            <div class="card card-purple">
+                <div class="card-content">
+                    <div class="card-label">Total Records</div>
+                    <div class="card-value">{{ summary.count }}</div>
+                    <div class="card-trend">
+                        <span class="trend-icon">📊</span>
+                        <span class="trend-text">Transactions</span>
+                    </div>
+                </div>
+                <div class="card-icon-wrapper">
+                    <span class="card-icon">📝</span>
+                </div>
+            </div>
+            <div class="card card-green">
+                <div class="card-content">
+                    <div class="card-label">Categories</div>
+                    <div class="card-value">{{ summary.categories }}</div>
+                    <div class="card-trend">
+                        <span class="trend-icon">🎯</span>
+                        <span class="trend-text">Active</span>
+                    </div>
+                </div>
+                <div class="card-icon-wrapper">
+                    <span class="card-icon">📂</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="charts-section">
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>📊 Category Distribution</h3>
+                    <p>Breakdown by expense categories</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="categoryChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-card">
+                <div class="chart-header">
+                    <h3>📈 Spending Trend</h3>
+                    <p>Recent expense patterns</p>
+                </div>
+                <div class="chart-container">
+                    <canvas id="trendChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Form Section -->
+            <div class="form-section">
+                <div class="section-header">
+                    <h2>
+                        <span class="section-icon">{% if editing %}✏️{% else %}➕{% endif %}</span>
+                        {% if editing %}Edit Expense{% else %}Add New Expense{% endif %}
+                    </h2>
+                </div>
+                
+                {% if editing %}
+                <form method="POST" action="{{ url_for('update_expense', id=editing.id) }}" class="expense-form">
+                {% else %}
+                <form method="POST" action="{{ url_for('add_expense') }}" class="expense-form">
+                {% endif %}
+                    <div class="form-group">
+                        <label>💵 Amount ($)</label>
+                        <input type="number" name="amount" step="0.01" placeholder="0.00" 
+                               value="{% if editing %}{{ editing.amount }}{% endif %}" required>
+                    </div>
+                    <div class="form-group">
+                        <label>📁 Category</label>
+                        <select name="category" required style="  background-color: #f2f3f344!important;">
+                            <option {% if editing and editing.category == 'Food' %}selected{% endif %}>Food</option>
+                            <option {% if editing and editing.category == 'Transport' %}selected{% endif %}>Transport</option>
+                            <option {% if editing and editing.category == 'Utilities' %}selected{% endif %}>Utilities</option>
+                            <option {% if editing and editing.category == 'Entertainment' %}selected{% endif %}>Entertainment</option>
+                            <option {% if editing and editing.category == 'Healthcare' %}selected{% endif %}>Healthcare</option>
+                            <option {% if editing and editing.category == 'Shopping' %}selected{% endif %}>Shopping</option>
+                            <option {% if editing and editing.category == 'Other' %}selected{% endif %}>Other</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>📅 Date</label>
+                        <input
+                            type="date"
+                            id="expenseDate"
+                            name="date"
+                            value="{% if editing %}{{ editing.date }}{% else %}{{ today }}{% endif %}"
+                            required
+                        >
+                    </div>
+                    <div class="form-group">
+                        <label>📝 Description</label>
+                        <input type="text" name="description" placeholder="Enter description" 
+                               value="{% if editing %}{{ editing.description }}{% endif %}" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">
+                        <span>{% if editing %}💾 Update Expense{% else %}➕ Add Expense{% endif %}</span>
+                    </button>
+                    {% if editing %}
+                    <a href="{{ url_for('index') }}" class="btn btn-secondary">
+                        <span>❌ Cancel</span>
+                    </a>
+                    {% endif %}
+                </form>
+            </div>
+
+            <!-- Content Section -->
+            <div class="content-section">
+                <!-- Filters -->
+                <div class="filters-card">
+                    <div class="filters-header">
+                        <h3>🔍 Filter Expenses</h3>
+                    </div>
+                    <div class="filter-group">
+                        <a href="{{ url_for('index', filter='all') }}" 
+                           class="filter-btn {% if current_filter == 'all' %}active{% endif %}">
+                            <span class="filter-icon">🌐</span>
+                            All Time
+                        </a>
+                        <a href="{{ url_for('index', filter='month') }}" 
+                           class="filter-btn {% if current_filter == 'month' %}active{% endif %}">
+                            <span class="filter-icon">📅</span>
+                            This Month
+                        </a>
+                        <a href="{{ url_for('index', filter='week') }}" 
+                           class="filter-btn {% if current_filter == 'week' %}active{% endif %}">
+                            <span class="filter-icon">📆</span>
+                            This Week
+                        </a>
+                        <button type="button" id="customRangeBtn" 
+                                class="filter-btn {% if current_filter == 'custom' %}active{% endif %}">
+                            <span class="filter-icon">📊</span>
+                            Custom Range
+                        </button>
+                    </div>
+
+                    <!-- Custom Date Range Form (Hidden by default) -->
+                    <div id="customRangeForm" class="custom-range-form" style="display: {% if current_filter == 'custom' %}block{% else %}none{% endif %};">
+                        <form method="GET" action="{{ url_for('index') }}" class="date-range-form">
+                            <input type="hidden" name="filter" value="custom">
+                            <div class="date-range-inputs">
+                                <div class="form-group">
+                                    <label>From Date</label>
+                                    <input type="date" name="start_date" id="startDate" 
+                                           value="{{ start_date }}" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>To Date</label>
+                                    <input type="date" name="end_date" id="endDate" 
+                                           value="{{ end_date }}" required>
+                                </div>
+                            </div>
+                            <div class="date-range-actions">
+                                <button type="submit" class="btn btn-primary btn-sm">
+                                    <span>Apply</span>
+                                </button>
+                                <a href="{{ url_for('index', filter='all') }}" class="btn btn-secondary btn-sm">
+                                    <span>Clear</span>
+                                </a>
+                            </div>
+                        </form>
+                        {% if current_filter == 'custom' and start_date and end_date %}
+                        <div class="date-range-display">
+                            <span class="range-label">Showing:</span>
+                            <span class="range-value">{{ start_date }} to {{ end_date }}</span>
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Expense Table -->
+                <div class="data-section">
+                    <div class="section-header">
+                        <h2>
+                            <span class="section-icon">📋</span>
+                            Expense Records
+                        </h2>
+                        <span class="record-count">{{ expenses|length }} records</span>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="expense-table">
+                            <thead>
+                                <tr>
+                                    <th>Date</th>
+                                    <th>Category</th>
+                                    <th>Description</th>
+                                    <th>Amount</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% if expenses %}
+                                    {% for expense in expenses %}
+                                    <tr>
+                                        <td>
+                                            <span class="date-text">{{ expense.date }}</span>
+                                        </td>
+                                        <td>
+                                            <span class="category-badge category-{{ expense.category|lower }}">
+                                                {{ expense.category }}
+                                            </span>
+                                        </td>
+                                        <td>{{ expense.description }}</td>
+                                        <td class="amount-cell">${{ "%.2f"|format(expense.amount) }}</td>
+                                        <td class="actions-cell">
+                                            <a href="{{ url_for('edit_expense', id=expense.id, filter=current_filter) }}" 
+                                               class="action-btn edit-btn" title="Edit">✏️</a>
+                                            <a href="{{ url_for('delete_expense', id=expense.id) }}" 
+                                               class="action-btn delete-btn" title="Delete"
+                                               onclick="return confirm('Are you sure you want to delete this expense?')">🗑️</a>
+                                        </td>
+                                    </tr>
+                                    {% endfor %}
+                                {% else %}
+                                    <tr>
+                                        <td colspan="5" class="empty-state">
+                                            <div class="empty-icon">📭</div>
+                                            <div class="empty-text">No expenses recorded yet</div>
+                                            <div class="empty-subtext">Add your first expense using the form!</div>
+                                        </td>
+                                    </tr>
+                                {% endif %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Category Summary -->
+                {% if summary.category_breakdown %}
+                <div class="data-section">
+                    <div class="section-header">
+                        <h2>
+                            <span class="section-icon">📊</span>
+                            Category Breakdown
+                        </h2>
+                    </div>
+                    <div class="category-summary">
+                        {% for category, amount in summary.category_breakdown.items() %}
+                        <div class="category-item">
+                            <div class="category-info">
+                                <span class="category-badge category-{{ category|lower }}">{{ category }}</span>
+                                <div class="category-bar">
+                                    <div class="category-bar-fill category-{{ category|lower }}" 
+                                         style="width: {{ (amount / summary.total * 100)|round(1) }}%"></div>
+                                </div>
+                            </div>
+                            <div class="category-stats">
+                                <span class="category-amount">${{ "%.2f"|format(amount) }}</span>
+                                <span class="category-percentage">{{ (amount / summary.total * 100)|round(1) }}%</span>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Date input validation
+        const dateInput = document.getElementById("expenseDate");
+        if (dateInput) {
+            const today = new Date().toISOString().split("T")[0];
+            dateInput.setAttribute("max", today);
+            dateInput.addEventListener("change", function () {
+                if (this.value > today) {
+                    alert("Future dates are not allowed.");
+                    this.value = today;
+                }
+            });
+        }
+
+        // Custom range toggle
+        const customRangeBtn = document.getElementById('customRangeBtn');
+        const customRangeForm = document.getElementById('customRangeForm');
+        
+        if (customRangeBtn) {
+            customRangeBtn.addEventListener('click', function() {
+                if (customRangeForm.style.display === 'none') {
+                    customRangeForm.style.display = 'block';
+                } else {
+                    customRangeForm.style.display = 'none';
+                }
+            });
+        }
+
+        // Date range validation
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        
+        if (startDateInput && endDateInput) {
+            const today = new Date().toISOString().split("T")[0];
+            startDateInput.setAttribute("max", today);
+            endDateInput.setAttribute("max", today);
+            
+            startDateInput.addEventListener('change', function() {
+                if (this.value > today) {
+                    alert("Future dates are not allowed.");
+                    this.value = today;
+                }
+                endDateInput.setAttribute("min", this.value);
+            });
+            
+            endDateInput.addEventListener('change', function() {
+                if (this.value > today) {
+                    alert("Future dates are not allowed.");
+                    this.value = today;
+                }
+                if (startDateInput.value && this.value < startDateInput.value) {
+                    alert("End date must be after start date.");
+                    this.value = startDateInput.value;
+                }
+            });
+        }
+
+        // Prepare data for charts
+        const categoryData = {{ summary.category_breakdown|tojson|safe }};
+        const expenses = {{ expenses|tojson|safe }};
+
+        // Category Pie Chart
+        if (Object.keys(categoryData).length > 0) {
+            const categoryCtx = document.getElementById('categoryChart').getContext('2d');
+            new Chart(categoryCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: Object.keys(categoryData),
+                    datasets: [{
+                        data: Object.values(categoryData),
+                        backgroundColor: [
+                            '#3b82f6',
+                            '#8b5cf6',
+                            '#10b981',
+                            '#f59e0b',
+                            '#ef4444',
+                            '#ec4899',
+                            '#6366f1'
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                padding: 15,
+                                font: { size: 12 }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.label + ': $' + context.parsed.toFixed(2);
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Trend Line Chart
+        if (expenses.length > 0) {
+            const dateMap = {};
+            expenses.forEach(exp => {
+                if (!dateMap[exp.date]) {
+                    dateMap[exp.date] = 0;
+                }
+                dateMap[exp.date] += parseFloat(exp.amount);
+            });
+
+            const sortedDates = Object.keys(dateMap).sort();
+            const trendData = sortedDates.map(date => dateMap[date]);
+
+            const trendCtx = document.getElementById('trendChart').getContext('2d');
+            new Chart(trendCtx, {
+                type: 'line',
+                data: {
+                    labels: sortedDates,
+                    datasets: [{
+                        label: 'Daily Expenses',
+                        data: trendData,
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true,
+                        borderWidth: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return 'Amount: $' + context.parsed.y.toFixed(2);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return '$' + value;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
